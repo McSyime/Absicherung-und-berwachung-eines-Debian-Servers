@@ -115,7 +115,7 @@ sudo apt install -y nmap
 ```
 ![État initial du serveur](Pictures/Status_Server_Initial.png)
 
-![État initial du tester](üictures/Status_Tester_Ini.png)
+![État initial du tester](Pictures/Status_Tester_Ini.png)
     
 Les captures confirment qu'OpenSSH est à l'écoute sur le serveur et que Nmap fonctionne sur la machine de test. Elles ne constituent pas un journal d'exécution de chacune des commandes d'installation : celles-ci sont conservées ici comme procédure de préparation.
 
@@ -514,7 +514,7 @@ Une nouvelle tentative depuis `tester` a ensuite produit :
 ```text
 ssh: connect to host 192.168.50.10 port 22: Connection refused
 ```
-![Etat avant débanissement](Pictures/State_before_unlock.png)
+![Etat avant débanissement](Pictures/State_before_unblock.png)
 
 Le passage de `Permission denied (publickey)` à `Connection refused`, associé à la présence de l'IP dans la liste Fail2ban, confirme le blocage réseau observé. Le message de blocage peut varier selon l'action de filtrage utilisée ; il ne doit pas être interprété isolément.
 
@@ -535,7 +535,7 @@ Total banned: 1
 Banned IP list:
 ```
 
-![Etat après débanissement](Pictures/State_after_unlock.png)
+![Etat après débanissement](Pictures/State_after_unblock.png)
 La liste est vide, tandis que le compteur historique `Total banned` conserve la trace du bannissement.
 
 Une nouvelle tentative unique depuis `tester` a de nouveau donné :
