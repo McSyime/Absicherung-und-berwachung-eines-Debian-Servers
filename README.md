@@ -20,7 +20,7 @@ Mettre en place une solution de sécurité associant le durcissement SSH, la pro
 
 ## 2. Objectifs spécifiques et critères de validation
 
-Les objectifs suivants décrivent le résultat attendu du projet. L'infrastructure, l'état initial, la configuration SSH durcie et les scénarios Fail2ban ci-dessous ont été vérifiés. Le contrôle d'intégrité et l'audit restent à réaliser.
+Les objectifs suivants décrivent le résultat attendu du projet. L'infrastructure, le durcissement SSH, Fail2ban, le contrôle d'intégrité AIDE et la traçabilité auditd ont été vérifiés dans les scénarios documentés. Des contrôles de persistance ont également été réalisés après arrêt complet et redémarrage.
 
 | ID | Objectif | Critère de validation | État |
 |---|---|---|---|
@@ -29,9 +29,9 @@ Les objectifs suivants décrivent le résultat attendu du projet. L'infrastructu
 | O3 | Disposer d'un point de restauration avant modification | Snapshot de l'état initial créé ; sa restauration n'a pas encore été testée | Snapshot créé |
 | O4 | Renforcer la configuration SSH | Connexion directe de root interdite, X11 désactivé, limite de tentatives réduite et accès d'administration par clé vérifié | Validé |
 | O5 | Protéger SSH avec Fail2ban | Des échecs d'authentification reconnus provoquent un bannissement temporaire ; le bannissement et sa levée sont vérifiés | Validé |
-| O6 | Contrôler l'intégrité avec AIDE | Une modification contrôlée d'un fichier surveillé est signalée lors d'une vérification | À réaliser |
-| O7 | Tracer des modifications avec auditd | Une modification sur un fichier surveillé produit un événement permettant d'identifier l'action et le contexte utilisateur | À réaliser |
-| O8 | Vérifier le fonctionnement des protections | Résultats attendus et observés comparés, avec preuves et limites | En cours : SSH et Fail2ban validés |
+| O6 | Contrôler l'intégrité avec AIDE | Une modification contrôlée d'un fichier surveillé est signalée lors d'une vérification | Validé |
+| O7 | Tracer des modifications avec auditd | Une modification sur un fichier surveillé produit un événement permettant d'identifier l'action et le contexte utilisateur | Validé |
+| O8 | Vérifier le fonctionnement des protections | Résultats attendus et observés comparés, avec preuves et limites | Validé pour les scénarios documentés |
 | O9 | Documenter et présenter la solution | Architecture, choix, configurations, tests et bilan expliqués | En cours |
 
 ## 3. Périmètre
@@ -63,8 +63,8 @@ Les protections ne permettront pas de garantir l'absence de toute vulnérabilit�
 | OpenSSH | Administration distante du serveur | Durci ; accès vérifié |
 | Nmap | Vérification des ports TCP accessibles | Utilisé sur `tester` |
 | Fail2ban | Détection d'échecs d'authentification et bannissement temporaire | Configuré et testé |
-| AIDE | Comparaison des fichiers avec une référence d'intégrité | À configurer |
-| auditd | Audit des actions sur les fichiers retenus | À configurer |
+| AIDE | Comparaison des fichiers avec une référence d'intégrité | Configuré ; tests et contrôle après redémarrage validés |
+| auditd | Audit des actions sur les fichiers retenus | Configuré ; traçabilité et rechargement des règles validés |
 | journald | Journal SSH utilisé par Fail2ban avec le backend systemd | Exploité et vérifié |
 | rsyslog | Journalisation complémentaire éventuelle | Configuration non vérifiée |
 | nftables | Blocages demandés par Fail2ban | Utilisé par l’action de bannissement configurée |
@@ -441,6 +441,10 @@ sudo fail2ban-client status sshd
 
 Le service a répondu `active`. La jail `sshd` a affiché initialement des compteurs d'échecs et de bannissements à zéro, avec le filtre de journal suivant :
 
+```text
+Journal matches: _SYSTEMD_UNIT=sshd.service + _COMM=sshd
+```
+
 ## 12. Tests de la protection Fail2ban
 
 ### 12.1 Conditions des essais
@@ -581,6 +585,8 @@ L'écart est d'environ 299 secondes, soit approximativement cinq minutes, cohér
 
 ### 12.6 Point d'attention sur la machine d'exécution
 
+Les tentatives SSH sont exécutées sur `tester`, tandis que les commandes `fail2ban-client` sont lancées sur `server`, où Fail2ban est installé. L'erreur `command not found` observée sur `tester` n'indique donc pas une défaillance du serveur protégé.
+
 ## 13. Bilan des tests après durcissement
 
 | ID | Vérification | Résultat attendu | Résultat observé | État |
@@ -596,20 +602,503 @@ L'écart est d'environ 299 secondes, soit approximativement cinq minutes, cohér
 | T16 | Durée configurée | 300 secondes | Valeur `300` retournée par Fail2ban | Validé |
 | T17 | Levée automatique | Déblocage après environ cinq minutes sans intervention | Paire `Ban`/`Unban` espacée d'environ cinq minutes et retour à l'authentification | Validé |
 
-Les tests valident le scénario IPv4 réalisé dans le laboratoire. Ils ne démontrent pas une protection contre tous les types d'attaque, ni une couverture IPv6. La persistance des protections après un redémarrage complet reste à vérifier.
+Les tests valident le scénario IPv4 réalisé dans le laboratoire. Ils ne démontrent pas une protection contre tous les types d'attaque, ni une couverture IPv6. Les contrôles de persistance effectués ensuite sont documentés dans la section 18.
 
-## 15. État d'avancement et prochaines étapes
+## 14. Contrôle d'intégrité avec AIDE
 
-L'infrastructure et l'état initial sont documentés. Le durcissement SSH est appliqué et l'accès d'administration est maintenu. Fail2ban est opérationnel ; la détection, le blocage réseau, la levée manuelle et l'expiration automatique du bannissement ont été vérifiés.
+### 14.1 Objectif et installation
 
-Les prochaines étapes sont :
+AIDE compare les fichiers surveillés avec une base de référence. Il permet de détecter des différences de contenu et de métadonnées lors d'un contrôle manuel. Il ne bloque pas les modifications et ne constitue pas, dans cette configuration, une surveillance continue.
 
-1. Configurer AIDE et créer une référence pour les fichiers retenus.
-2. Vérifier la détection d'une modification contrôlée.
-3. Configurer auditd et vérifier la traçabilité des actions.
-4. Vérifier le fonctionnement des protections après redémarrage.
-5. Compléter le bilan, les limites et la préparation de la présentation.
+Installation sur `server` :
 
-L'installation d'AIDE a été proposée, mais aucune sortie de version, configuration ou résultat de test AIDE n'a encore été transmis. AIDE et auditd ne sont donc pas considérés comme opérationnels à ce stade.
+```bash
+sudo apt update
+sudo apt install -y aide
+sudo aide --version
+ls -l /etc/aide/
+```
+
+Version observée : **AIDE 0.18.3**. Le dossier `/etc/aide/` contient notamment `aide.conf`, `aide.conf.d` et `aide.settings.d`.
+
+La version installée indique `config file: <none>`, `database_in: <none>` et `database_out: <none>` dans ses valeurs par défaut compilées. La configuration du laboratoire est donc précisée explicitement dans chaque commande.
+
+### 14.2 Configuration du laboratoire
+
+Un fichier indépendant de la configuration Debian fournie a été créé :
+
+```bash
+sudo nano /etc/aide/aide-lab.conf
+```
+
+Contenu :
+
+```text
+# Bases de reference du laboratoire
+database_in=file:/var/lib/aide/aide-lab.db
+database_out=file:/var/lib/aide/aide-lab.db.new
+gzip_dbout=no
+
+# Rapport affiche dans le terminal
+report_url=stdout
+report_level=changed_attributes
+
+# Attributs surveilles
+LAB = p+u+g+ftype+s+m+c+sha256
+
+# Repertoires surveilles
+/etc/ssh(/.*)?$ LAB
+/etc/fail2ban(/.*)?$ LAB
+
+# Configuration de surveillance elle-meme
+/etc/aide/aide-lab[.]conf$ LAB
+```
+
+| Attribut | Contrôle |
+|---|---|
+| `p` | Permissions |
+| `u`, `g` | Propriétaire et groupe |
+| `ftype` | Type de fichier |
+| `s` | Taille |
+| `m` | Date de dernière modification du contenu (`mtime`) |
+| `c` | Date de changement des métadonnées (`ctime`) |
+| `sha256` | Empreinte du contenu |
+
+Le périmètre couvre la configuration SSH, celle de Fail2ban et le fichier de configuration AIDE du laboratoire. Les bases AIDE et les journaux ne sont pas inclus dans ces règles. Le nombre d'entrées initialement enregistrées est de **188**, comprenant des fichiers et des répertoires.
+
+### 14.3 Création de la référence
+
+Vérification syntaxique et initialisation :
+
+```bash
+sudo aide --config=/etc/aide/aide-lab.conf --config-check
+sudo mkdir -p /var/lib/aide
+sudo aide --config=/etc/aide/aide-lab.conf --init
+```
+
+La commande `--init` produit la base de sortie `aide-lab.db.new`. Cette base a ensuite été activée comme référence :
+
+```bash
+sudo cp /var/lib/aide/aide-lab.db.new /var/lib/aide/aide-lab.db
+sudo chmod 600 /var/lib/aide/aide-lab.db /var/lib/aide/aide-lab.db.new
+```
+
+Premier contrôle :
+
+```bash
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+Résultat observé le 22 octobre 2026 à **09:50:26 UTC** :
+
+```text
+AIDE found NO differences between database and filesystem. Looks okay!!
+Number of entries: 188
+```
+
+Cette étape confirme que la référence correspond à l'état des fichiers au début du test.
+
+## 15. Test de détection et restauration avec AIDE
+
+### 15.1 Modification contrôlée
+
+Le fichier SSH a été sauvegardé dans `/root`, hors du périmètre surveillé :
+
+```bash
+sudo cp -a /etc/ssh/sshd_config.d/00-lab-hardening.conf /root/00-lab-hardening.conf.avant-test-aide
+```
+
+Un commentaire a été ajouté, sans modifier les paramètres de sécurité :
+
+```bash
+echo '# Test AIDE : modification controlee' | sudo tee -a /etc/ssh/sshd_config.d/00-lab-hardening.conf
+sudo /usr/sbin/sshd -t
+```
+
+Aucun rechargement SSH n'était nécessaire pour ce commentaire. Un nouveau contrôle AIDE a été effectué sans modifier la référence :
+
+```bash
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+Résultat observé à **09:51:47 UTC** :
+
+```text
+AIDE found differences between database and filesystem!!
+Total number of entries: 188
+Added entries: 0
+Removed entries: 0
+Changed entries: 1
+```
+
+| Élément | Référence | État modifié |
+|---|---|---|
+| Fichier | `/etc/ssh/sshd_config.d/00-lab-hardening.conf` | Même fichier |
+| Taille | 134 octets | 171 octets |
+| `mtime` | 20.10.2026 à 12:11:54 UTC | 22.10.2026 à 09:51:25 UTC |
+| `ctime` | 20.10.2026 à 12:11:54 UTC | 22.10.2026 à 09:51:25 UTC |
+| SHA-256 | Empreinte de référence | Empreinte différente |
+
+Un seul fichier modifié a été détecté, sans ajout ni suppression. Le changement de contenu a donc été reconnu.
+
+### 15.2 Restauration du fichier
+
+```bash
+sudo cp -a /root/00-lab-hardening.conf.avant-test-aide /etc/ssh/sshd_config.d/00-lab-hardening.conf
+sudo cmp /root/00-lab-hardening.conf.avant-test-aide /etc/ssh/sshd_config.d/00-lab-hardening.conf
+sudo /usr/sbin/sshd -t
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+Le contrôle du **22 octobre à 09:54:06 UTC** ne signalait plus qu'une différence de `ctime`, passée de `20.10.2026 12:11:54` à `22.10.2026 09:53:35`.
+
+La taille, l'empreinte SHA-256 et les autres attributs surveillés correspondaient à la référence. Le contenu initial était donc rétabli. La différence de `ctime` est attendue : la restauration constitue elle-même une opération sur le fichier. `cp -a` peut préserver le `mtime`, mais ne rétablit pas l'ancien `ctime`.
+
+### 15.3 Actualisation contrôlée de la référence
+
+L'ancienne base a été sauvegardée, puis une base actualisée a été produite après analyse de la différence :
+
+```bash
+sudo cp -a /var/lib/aide/aide-lab.db /root/aide-lab.db.avant-actualisation
+sudo aide --config=/etc/aide/aide-lab.conf --update
+```
+
+Après confirmation que seul le `ctime` attendu différait, la nouvelle base a été activée :
+
+```bash
+sudo cp /var/lib/aide/aide-lab.db.new /var/lib/aide/aide-lab.db
+sudo chmod 600 /var/lib/aide/aide-lab.db
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+Le contrôle de **09:55:49 UTC** a confirmé l'absence de différences sur les 188 entrées. La référence n'a pas été actualisée pour accepter le commentaire de test : le contenu d'origine a d'abord été restauré et vérifié.
+
+## 16. Traçabilité des opérations avec auditd
+
+### 16.1 Objectif et installation
+
+auditd enregistre des événements permettant d'analyser les opérations sur les fichiers surveillés. Il complète AIDE en apportant le contexte de l'opération : programme utilisé, identité de connexion, identité effective et horaire. Il ne bloque pas les opérations avec les règles retenues ici.
+
+Installation et vérification sur `server` :
+
+```bash
+sudo apt update
+sudo apt install -y auditd
+sudo systemctl enable --now auditd
+systemctl is-active auditd
+sudo auditctl -s
+sudo auditctl -l
+```
+
+Le relevé initial du sous-système d'audit indiquait notamment :
+
+```text
+enabled 1
+pid 27959
+lost 0
+backlog 0
+```
+
+Aucune règle n'était encore chargée : `auditctl -l` retournait `No rules`.
+
+### 16.2 Règles persistantes
+
+Le fichier suivant a été créé :
+
+```bash
+sudo nano /etc/audit/rules.d/50-security-lab.rules
+```
+
+Contenu :
+
+```text
+# Modifications de la configuration SSH
+-w /etc/ssh/ -p wa -k ssh_config
+
+# Modifications de la configuration Fail2ban
+-w /etc/fail2ban/ -p wa -k fail2ban_config
+
+# Modifications de la configuration AIDE
+-w /etc/aide/ -p wa -k aide_config
+```
+
+| Option | Rôle |
+|---|---|
+| `-w` | Définition du chemin surveillé |
+| `-p w` | Surveillance des opérations d'écriture |
+| `-p a` | Surveillance des changements d'attributs |
+| `-k` | Étiquette pour rechercher les événements |
+
+Les règles surveillent les répertoires concernés et leurs sous-répertoires, sous réserve des limites de traversée des points de montage du mécanisme d'audit. Le périmètre AIDE reste plus ciblé pour sa propre configuration : seul `aide-lab.conf` y est inclus, tandis qu'auditd surveille `/etc/aide/`.
+
+Protection du fichier et chargement :
+
+```bash
+sudo chmod 600 /etc/audit/rules.d/50-security-lab.rules
+sudo augenrules --load
+sudo auditctl -l
+sudo auditctl -s
+```
+
+Les trois règles ont été confirmées :
+
+```text
+-w /etc/ssh -p wa -k ssh_config
+-w /etc/fail2ban -p wa -k fail2ban_config
+-w /etc/aide -p wa -k aide_config
+```
+
+La suppression des barres obliques finales dans l'affichage ne change pas les chemins surveillés. Le message `No rules` apparu pendant `augenrules --load` n'a pas signifié un échec global : la liste finale confirme le chargement des trois règles. Le statut final était `enabled 1`, `lost 0`, `backlog 0`.
+
+## 17. Test combiné auditd et AIDE
+
+### 17.1 Génération d'un événement
+
+Une nouvelle sauvegarde a été effectuée avant le test :
+
+```bash
+sudo cp -a /etc/ssh/sshd_config.d/00-lab-hardening.conf /root/00-lab-hardening.conf.avant-test-auditd
+```
+
+Ajout d'un commentaire et vérification de la syntaxe :
+
+```bash
+echo '# Test auditd : modification controlee' | sudo tee -a /etc/ssh/sshd_config.d/00-lab-hardening.conf
+sudo /usr/sbin/sshd -t
+```
+
+Recherche des événements :
+
+```bash
+sudo ausearch -k ssh_config -ts recent -i
+```
+
+### 17.2 Analyse de l'événement d'audit
+
+La sortie contenait un événement de chargement de règle, identifiant **112**, et l'événement de test, identifiant **140**, enregistré le **22 octobre 2026 à 10:11:25.299 UTC**.
+
+Extraits utiles de l'événement 140 :
+
+```text
+type=PROCTITLE ... proctitle=tee -a /etc/ssh/sshd_config.d/00-lab-hardening.conf
+type=PATH ... name=/etc/ssh/sshd_config.d/00-lab-hardening.conf
+type=SYSCALL ... syscall=openat success=yes
+... a2=O_WRONLY|O_CREAT|O_APPEND
+... auid=vagrant uid=root euid=root
+... comm=tee exe=/usr/bin/tee key=ssh_config
+```
+
+| Champ | Résultat | Interprétation |
+|---|---|---|
+| Identifiant d'événement | `140` | Regroupement des enregistrements de la même opération |
+| `name` | Chemin du fichier SSH | Fichier concerné |
+| `exe` / `comm` | `/usr/bin/tee` / `tee` | Programme exécuté |
+| `auid` | `vagrant` | Identité de connexion initiale conservée dans l'audit |
+| `uid` / `euid` | `root` / `root` | Identités utilisées par le processus lancé avec `sudo` |
+| Appel système | `openat` | Ouverture du fichier |
+| Drapeaux | `O_WRONLY`, `O_CREAT`, `O_APPEND` | Ouverture en écriture avec ajout |
+| `success` | `yes` | Réussite de l'appel système observé |
+| `key` | `ssh_config` | Correspondance avec la règle SSH |
+
+L'événement montre l'ouverture réussie en écriture avec ajout par `tee`, depuis une session attribuée à `vagrant`, avec les privilèges root. Cette trace ne reproduit pas le contenu ajouté ; le changement effectif du contenu est vérifié séparément par AIDE.
+
+### 17.3 Détection de la même modification avec AIDE
+
+```bash
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+Le contrôle du **22 octobre à 10:17:15 UTC** a détecté une entrée modifiée parmi 188, sans ajout ni suppression.
+
+| Attribut du fichier SSH | Référence | Après le commentaire auditd |
+|---|---|---|
+| Taille | 134 octets | 173 octets |
+| `mtime` | 20.10.2026 à 12:11:54 UTC | 22.10.2026 à 10:11:25 UTC |
+| `ctime` | 22.10.2026 à 09:53:35 UTC | 22.10.2026 à 10:11:25 UTC |
+| SHA-256 | Empreinte de référence | Empreinte différente |
+
+Le `mtime` correspond, à la seconde près, à l'horaire de l'événement auditd. Les deux outils fournissent des preuves complémentaires : AIDE détecte la différence par rapport à la référence et auditd permet de contextualiser l'opération.
+
+### 17.4 Restauration et retour à un état propre
+
+```bash
+sudo cp -a /root/00-lab-hardening.conf.avant-test-auditd /etc/ssh/sshd_config.d/00-lab-hardening.conf
+sudo cmp /root/00-lab-hardening.conf.avant-test-auditd /etc/ssh/sshd_config.d/00-lab-hardening.conf
+sudo /usr/sbin/sshd -t
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+La procédure prévoit de vérifier que seule la différence de `ctime` attendue subsiste avant d'accepter le nouvel état. La référence a ensuite été actualisée avec sauvegarde préalable :
+
+```bash
+sudo cp -a /var/lib/aide/aide-lab.db /root/aide-lab.db.avant-actualisation-auditd
+sudo aide --config=/etc/aide/aide-lab.conf --update
+```
+
+Après examen du rapport :
+
+```bash
+sudo cp /var/lib/aide/aide-lab.db.new /var/lib/aide/aide-lab.db
+sudo chmod 600 /var/lib/aide/aide-lab.db
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+Le résultat final effectivement transmis à **10:22:51 UTC** était :
+
+```text
+AIDE found NO differences between database and filesystem. Looks okay!!
+Number of entries: 188
+```
+
+Les étapes intermédiaires de cette seconde restauration ne sont pas accompagnées d'une sortie détaillée dans les éléments transmis ; le contrôle final confirme le retour à un état conforme à la référence activée.
+
+## 18. Vérifications après arrêt complet et redémarrage
+
+### 18.1 Procédure
+
+Après fermeture des sessions SSH, les commandes suivantes ont été utilisées comme procédure d'arrêt et de redémarrage depuis le dossier du projet sous PowerShell :
+
+```powershell
+vagrant halt
+vagrant up
+vagrant status
+vagrant ssh server
+```
+
+Un arrêt complet permet de vérifier le rechargement des configurations persistantes. Il évite de dépendre uniquement d'une session suspendue.
+
+### 18.2 SSH
+
+```bash
+sudo /usr/sbin/sshd -T | grep -E '^(permitrootlogin|pubkeyauthentication|passwordauthentication|kbdinteractiveauthentication|maxauthtries|x11forwarding) '
+```
+
+Sortie transmise après redémarrage :
+
+```text
+maxauthtries 3
+permitrootlogin no
+pubkeyauthentication yes
+passwordauthentication no
+kbdinteractiveauthentication no
+x11forwarding no
+```
+
+Les six paramètres ont persisté. L'accès au serveur a également été possible pour exécuter ces contrôles.
+
+### 18.3 Fail2ban
+
+```bash
+sudo fail2ban-client status sshd
+```
+
+La jail `sshd` était accessible, lisait le journal systemd et affichait des compteurs à zéro :
+
+```text
+Currently failed: 0
+Total failed: 0
+Journal matches: _SYSTEMD_UNIT=sshd.service + _COMM=sshd
+Currently banned: 0
+Total banned: 0
+Banned IP list:
+```
+
+Ces compteurs décrivent l'instance après redémarrage ; ils ne remplacent pas l'historique des tests documentés. Aucun nouveau test complet de bannissement après ce redémarrage n'a été fourni : la vérification porte ici sur la disponibilité de la jail.
+
+### 18.4 auditd
+
+```bash
+sudo auditctl -l
+sudo auditctl -s
+```
+
+Les trois règles `ssh_config`, `fail2ban_config` et `aide_config` étaient de nouveau présentes. Le statut indiquait :
+
+```text
+enabled 1
+pid 261
+lost 0
+backlog 0
+```
+
+Cela confirme le fonctionnement du sous-système d'audit et le rechargement des règles persistantes, sans perte d'événement signalée.
+
+### 18.5 AIDE
+
+```bash
+sudo aide --config=/etc/aide/aide-lab.conf --check
+```
+
+Le contrôle effectué à **10:30:17 UTC**, terminé à **10:30:18 UTC**, a retourné :
+
+```text
+AIDE found NO differences between database and filesystem. Looks okay!!
+Number of entries: 188
+```
+
+La base de référence et les fichiers surveillés sont donc restés cohérents après redémarrage. Ce contrôle est manuel ; aucun service de surveillance continue AIDE n'a été mis en place pour le laboratoire.
+
+## 19. Bilan des nouveaux tests
+
+Les tests T01 à T17 figurent dans les sections 9 et 13. Les vérifications complémentaires sont les suivantes :
+
+| ID | Vérification | Résultat observé | État |
+|---|---|---|---|
+| T18 | Référence AIDE initiale | Aucune différence, 188 entrées à 09:50:26 UTC | Validé |
+| T19 | Modification contrôlée du fichier SSH | Une entrée modifiée ; taille de 134 à 171 octets et SHA-256 différent | Validé |
+| T20 | Restauration du premier test | Seul le `ctime` diffère ; contenu rétabli selon les attributs surveillés | Validé |
+| T21 | Actualisation contrôlée de la référence | Aucune différence à 09:55:49 UTC | Validé |
+| T22 | Chargement des règles auditd | Trois règles présentes, audit activé, `lost 0` | Validé |
+| T23 | Traçabilité de l'opération | Événement 140 : `tee`, fichier SSH, `auid=vagrant`, `euid=root`, `success=yes` | Validé |
+| T24 | Corrélation AIDE/auditd | Une modification détectée ; `mtime` cohérent avec l'horaire de l'événement | Validé |
+| T25 | Fin du test combiné | Aucune différence AIDE à 10:22:51 UTC après restauration et actualisation | Validé |
+| T26 | SSH après redémarrage | Six paramètres durcis conservés | Validé |
+| T27 | Fail2ban après redémarrage | Jail `sshd` disponible | Validé |
+| T28 | auditd après redémarrage | Trois règles rechargées, `enabled 1`, `lost 0`, `backlog 0` | Validé |
+| T29 | AIDE après redémarrage | Aucune différence sur les 188 entrées à 10:30:17 UTC | Validé |
+
+Les horaires des résultats AIDE sont exprimés en UTC, conformément aux sorties `+0000`. Le 22 octobre 2026, l'heure suisse est décalée de deux heures par rapport à ces sorties.
+
+## 20. Points de restauration et sauvegarde du travail
+
+Le snapshot initial créé avant durcissement est décrit dans la section 8. La création d'un point de restauration supplémentaire après AIDE et auditd a également été préparée.
+
+Procédure depuis PowerShell, après fermeture des sessions SSH :
+
+```powershell
+vagrant halt
+vagrant snapshot save server apres-aide-auditd
+vagrant snapshot save tester apres-aide-auditd
+vagrant snapshot list server
+vagrant snapshot list tester
+```
+
+Ces commandes sauvegardent séparément les VM après un arrêt propre. Aucune sortie de création ou de liste de ces nouveaux snapshots n'a été fournie dans les éléments transmis : leur création effective reste à confirmer avant de la déclarer validée dans le bilan final.
+
+Les snapshots sont locaux à VirtualBox. Ils ne constituent pas une copie indépendante en cas de perte du disque hôte. Le dépôt Git sert à conserver le Vagrantfile, la documentation, les captures et les configurations sélectionnées ; le dossier `.vagrant/` doit rester exclu car il contient des données propres au poste et des clés privées.
+
+## 21. Limites de la solution et interprétation des résultats
+
+- **Périmètre du durcissement :** seules les mesures décrites ont été appliquées. Le travail ne revendique pas une conformité CIS complète.
+- **SSH :** les valeurs effectives et le maintien de l'accès ont été vérifiés. Des essais fonctionnels distincts de connexion root, de dépassement de `MaxAuthTries` et de transfert X11 n'ont pas été fournis.
+- **Fail2ban :** les tests concernent une source IPv4 et des événements liés à un utilisateur inexistant. Une adresse ignorée n'est pas bannie par cette jail. Le filtrage ne traite pas tous les types d'attaque ni les attaques distribuées.
+- **AIDE :** la détection dépend du périmètre configuré et de l'exécution d'un contrôle. L'outil ne bloque pas les écritures et ne décide pas si une modification est autorisée. Une référence ne doit être actualisée qu'après examen des différences.
+- **Base de confiance :** la base AIDE est locale et accessible à root. Un attaquant disposant de privilèges suffisants pourrait altérer la base, les configurations ou les journaux. La sauvegarde de la référence et des traces hors de la machine constituerait une amélioration possible.
+- **auditd :** les règles enregistrent le contexte des opérations surveillées ; elles ne conservent pas nécessairement le contenu exact écrit. `auid` identifie un compte de connexion, pas avec certitude une personne physique. Le compte `vagrant` reste un compte d'administration de laboratoire.
+- **Protection des règles d'audit :** `/etc/audit/` n'est pas inclus dans la configuration AIDE actuelle et ne fait pas l'objet d'une règle de surveillance dédiée dans ce projet.
+- **Après redémarrage :** les paramètres SSH, la jail Fail2ban, les règles auditd et la cohérence AIDE ont été vérifiés. Tous les scénarios d'attaque n'ont pas été rejoués après ce redémarrage.
+
+## 22. État d'avancement et finalisation
+
+Les objectifs techniques définis pour SSH, Fail2ban, AIDE et auditd ont été mis en œuvre et vérifiés dans les scénarios documentés. Le laboratoire démontre la prévention de certains accès, la détection des modifications et la traçabilité des opérations. Les contrôles après redémarrage confirment la persistance des éléments vérifiés.
+
+La finalisation comprend encore :
+
+1. Ajouter les captures des étapes AIDE, auditd et redémarrage dans le dossier `Pictures/`, avec leurs noms réels.
+2. Confirmer la présence des snapshots supplémentaires dans Vagrant ou VirtualBox.
+3. Sauvegarder les configurations retenues dans Git, sans clés privées ni dossier `.vagrant/`.
+4. Préparer la présentation et une démonstration courte à partir des scénarios documentés.
+
+Les liens d'images déjà présents dans le Markdown ont été conservés. Aucun nouveau nom de capture AIDE ou auditd n'est supposé : les sorties fournies sont reproduites sous forme de texte et de tableaux jusqu'à réception des noms exacts des images.
 
 
