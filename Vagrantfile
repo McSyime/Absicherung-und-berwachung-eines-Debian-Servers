@@ -1,12 +1,13 @@
 # Absicherung und Ueberwachung eines Debian-Servers
-# Infrastructure uniquement : installation et configuration manuelles.
-Vagrant.configure("2") do |config|
-  config.vm.box = "debian/bookworm64"
+# Machines preconfigurees depuis la release v1.0.0.
 
-  # Pas de dossier partage entre l'hote et les machines du laboratoire.
+Vagrant.configure("2") do |config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
   config.vm.define "server" do |server|
+    server.vm.box = "mcsyime/security-server-v1.0.0"
+    server.vm.box_url = "https://github.com/McSyime/Absicherung-und-berwachung-eines-Debian-Servers/releases/download/v1.0.0/security-server.box"
+
     server.vm.hostname = "security-server"
     server.vm.network "private_network",
       ip: "192.168.50.10",
@@ -19,6 +20,9 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define "tester" do |tester|
+    tester.vm.box = "mcsyime/security-tester-v1.0.0"
+    tester.vm.box_url = "https://github.com/McSyime/Absicherung-und-berwachung-eines-Debian-Servers/releases/download/v1.0.0/security-tester.box"
+
     tester.vm.hostname = "security-tester"
     tester.vm.network "private_network",
       ip: "192.168.50.20",
