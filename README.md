@@ -8,7 +8,7 @@ Ce projet consiste à sécuriser et à surveiller un serveur Debian dans un labo
 
 Le travail comprend une implémentation fonctionnelle, une documentation et une présentation. Le laboratoire permet de réaliser des tests sur des machines dédiées et de comparer l'état initial du serveur avec son état après sécurisation.
 
-Le projet porte sur la configuration et l'évaluation des mesures de sécurité. L'automatisation, le développement de scripts et la création d'une application ne constituent pas des objectifs. Vagrant et VirtualBox servent uniquement à mettre à disposition les machines virtuelles.
+Le projet porte sur la configuration et l'évaluation des mesures de sécurité. 
 
 ### 1.2 Problématique
 
@@ -16,7 +16,7 @@ Comment renforcer la sécurité d'un serveur Debian, protéger son accès SSH et
 
 ### 1.3 Objectif général
 
-Mettre en place une solution de sécurité associant le durcissement SSH, la protection contre les échecs d'authentification répétés, le contrôle d'intégrité et la traçabilité des modifications. L'efficacité et les limites de chaque mesure seront vérifiées par des tests documentés.
+Mettre en place une solution de sécurité associant le durcissement SSH, la protection contre les échecs d'authentification répétés, le contrôle d'intégrité et la traçabilité des modifications. 
 
 ## 2. Objectifs spécifiques et critères de validation
 
@@ -46,12 +46,6 @@ Les objectifs suivants décrivent le résultat attendu du projet. L'infrastructu
 - La surveillance d'un ensemble limité de fichiers avec AIDE et auditd.
 - L'examen des événements de sécurité dans les journaux disponibles.
 - La comparaison avant/après, la documentation et une démonstration.
-
-### 3.2 Limites du travail
-
-Le laboratoire ne comprend ni infrastructure de production, ni IDS réseau, ni application métier. Les tests ciblent exclusivement les VM du projet. La conformité complète à un benchmark CIS n'est pas revendiquée : chaque mesure retenue sera expliquée et testée individuellement.
-
-Les protections ne permettront pas de garantir l'absence de toute vulnérabilité. Le projet devra préciser ce que chaque outil détecte ou bloque et ce qui reste hors de son champ d'action.
 
 ## 4. Outils et lien avec les cours
 
@@ -148,7 +142,7 @@ sudo ss -lntup
 | Protocole | Adresse et port observés | Processus | Interprétation |
 |---|---|---|---|
 | TCP | `0.0.0.0:22` et `[::]:22` | `sshd` | SSH écoute sur les adresses IPv4 et IPv6 du serveur |
-| UDP | `127.0.0.1:323` et `[::1]:323` | `chronyd` | Port de commande de chrony limité à la boucle locale |
+| UDP | `127.0.0.1:323` et `[::1]:323` | `chronyd` | Port de commande  |
 | UDP | `0.0.0.0:68` | `dhclient` | Client DHCP |
 
 Un service en écoute localement n'est pas nécessairement accessible à distance. La commande `ss` décrit l'état local ; le scan depuis `tester` complète ce relevé par une observation réseau.
@@ -230,13 +224,13 @@ x11forwarding yes
 
 La configuration initiale désactive déjà les mots de passe. Le projet devra distinguer ces protections préexistantes des mesures réellement ajoutées.
 
-La commande `sshd -T` donne la configuration effective générale. Des blocs `Match` éventuels peuvent produire des différences selon l'utilisateur ou l'origine de la connexion ; leur présence devra être examinée si nécessaire lors du durcissement.
+La commande `sshd -T` donne la configuration effective générale. 
 
 ## 8. Point de restauration
 
-Un snapshot de l'état actuel a été créé avant le durcissement, conformément à la confirmation de l'auteur du projet.
+Un snapshot de l'état actuel a été créé avant le durcissement.
 
-Il permettra de revenir à la situation initiale en cas de problème ou de reproduire certains tests. Le nom exact du snapshot et les VM couvertes devront être reportés depuis Vagrant ou VirtualBox dans la version finale du document.
+Il permettra de revenir à la situation initiale en cas de problème ou de reproduire certains tests. Le nom exact du snapshots est ```avant-hardening```.
 
 La restauration du snapshot n'a pas encore été testée. Le snapshot conserve la référence avant les modifications SSH et Fail2ban présentées dans les sections suivantes.
 
@@ -250,7 +244,6 @@ La restauration du snapshot n'a pas encore été testée. Le snapshot conserve l
 | T04 | Scan TCP complet | Un port ouvert et 65 534 ports fermés | SSH est le seul service TCP ouvert observé sur l'adresse testée |
 | T05 | Interfaces serveur | NAT et réseau interne présents | L'adresse du serveur correspond au plan réseau |
 | T06 | Configuration SSH | Paramètres relevés avec `sshd -T` | Une référence avant durcissement est disponible |
-| T07 | Snapshot | Création confirmée par l'auteur | Point de restauration annoncé ; restauration non testée |
 
 
 ## 10. Durcissement SSH
@@ -270,17 +263,7 @@ Le durcissement vise à interdire la connexion directe de root, à réduire le n
 
 Les mots de passe étaient déjà désactivés avant le projet. Cette protection a été conservée ; elle ne constitue pas une nouvelle mesure ajoutée pendant le durcissement.
 
-### 10.2 Sauvegarde de la configuration
-
-Une sauvegarde de la configuration SSH a été prévue avant modification, en complément du snapshot initial :
-
-```bash
-sudo cp -a /etc/ssh "/root/ssh-avant-hardening-$(date +%Y%m%d-%H%M%S)"
-```
-
-Le suffixe horodaté permet de distinguer les sauvegardes. La session d'administration existante a été conservée pendant la vérification d'une nouvelle connexion.
-
-### 10.3 Fichier de configuration dédié
+### 10.2 Fichier de configuration dédié
 
 Sur `server`, le fichier suivant a été créé :
 
@@ -288,7 +271,7 @@ Sur `server`, le fichier suivant a été créé :
 sudo nano /etc/ssh/sshd_config.d/00-lab-hardening.conf
 ```
 
-Contenu retenu :
+Contenu :
 
 ```text
 PermitRootLogin no
@@ -328,13 +311,12 @@ x11forwarding no
 
 Les six valeurs correspondent à la configuration souhaitée.
 
-### 10.5 Application et maintien de l'administration
+### 10.4 Application et maintien de l'administration
 
 Après validation syntaxique, la procédure d'application a été :
 
 ```bash
 sudo /usr/sbin/sshd -t && sudo systemctl reload ssh
-systemctl is-active ssh
 ```
 
 Depuis une deuxième fenêtre PowerShell, une nouvelle connexion a été effectuée :
@@ -411,9 +393,9 @@ ignoreip = 127.0.0.1/8 ::1 10.0.2.2
 | `maxretry = 3` | Déclencher un bannissement après trois échecs reconnus dans la fenêtre de recherche |
 | `findtime = 5m` | Compter les événements sur une période de cinq minutes |
 | `bantime = 5m` | Bannir temporairement pendant environ cinq minutes |
-| `ignoreip` | Exclure la boucle locale et l'adresse NAT d'administration retenue pour ce laboratoire |
+| `ignoreip` | Exclure la boucle locale et l'adresse NAT d'administration |
 
-L'exception `10.0.2.2` vise à préserver l'accès d'administration via le NAT VirtualBox. Elle constitue un choix propre au laboratoire, à réévaluer pour un déploiement réel. L'adresse de `tester`, `192.168.50.20`, n'est pas exclue.
+L'exception `10.0.2.2` vise à préserver l'accès d'administration via le NAT VirtualBox. 
 
 ### 11.4 Validation et démarrage
 
@@ -439,11 +421,7 @@ systemctl is-active fail2ban
 sudo fail2ban-client status sshd
 ```
 
-Le service a répondu `active`. La jail `sshd` a affiché initialement des compteurs d'échecs et de bannissements à zéro, avec le filtre de journal suivant :
-
-```text
-Journal matches: _SYSTEMD_UNIT=sshd.service + _COMM=sshd
-```
+Le service a répondu `active`. La jail `sshd` a affiché initialement des compteurs d'échecs et de bannissements à zéro.
 
 ## 12. Tests de la protection Fail2ban
 
@@ -461,40 +439,13 @@ Journal matches: _SYSTEMD_UNIT=sshd.service + _COMM=sshd
 
 Le scénario vérifie des échecs d'authentification liés à un utilisateur inexistant, sans réactiver les mots de passe. Il ne s'agit pas d'un test de recherche de mot de passe. Le nombre d'événements reconnus ne doit pas être systématiquement assimilé au nombre de commandes SSH exécutées.
 
-### 12.2 Reconnaissance de la clé du serveur
 
-Une première commande a échoué avec :
-
-```text
-Host key verification failed.
-```
-
-L'option `BatchMode=yes` empêchait la confirmation interactive de la clé lors de la première connexion. L'authentification de l'utilisateur n'était pas atteinte et le compteur d'échecs Fail2ban restait à zéro.
-
-La procédure de correction a consisté à afficher l'empreinte sur `server` :
-
-```bash
-sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
-```
-
-Puis à lancer sur `tester` une connexion permettant la confirmation de la clé :
-
-```bash
-ssh -o HostKeyAlgorithms=ssh-ed25519 utilisateur-inexistant@192.168.50.10
-```
-
-Après comparaison des empreintes, la clé du serveur a été acceptée avec `yes` et ajoutée au fichier `known_hosts` de `tester`. La capture confirme l'acceptation de la clé, puis le refus d'authentification :
-
-```text
-Permission denied (publickey).
-```
-
-### 12.3 Détection et bannissement
+### 12.2 Détection et bannissement
 
 Commande exécutée manuellement à plusieurs reprises depuis `tester` :
 
 ```bash
-ssh -o BatchMode=yes -o ConnectTimeout=5 utilisateur-inexistant@192.168.50.10
+ssh admin@192.168.50.10
 ```
 
 Sur `server`, le contrôle suivant a été effectué :
@@ -520,9 +471,9 @@ ssh: connect to host 192.168.50.10 port 22: Connection refused
 ```
 ![Etat avant débanissement](Pictures/State_before_unblock.png)
 
-Le passage de `Permission denied (publickey)` à `Connection refused`, associé à la présence de l'IP dans la liste Fail2ban, confirme le blocage réseau observé. Le message de blocage peut varier selon l'action de filtrage utilisée ; il ne doit pas être interprété isolément.
+Le passage de `Permission denied (publickey)` à `Connection refused`, associé à la présence de l'IP dans la liste Fail2ban, confirme le blocage réseau observé.
 
-### 12.4 Levée manuelle du bannissement
+### 12.3 Levée manuelle du bannissement
 
 Sur `server` :
 
@@ -572,7 +523,7 @@ Les événements ont été extraits sur `server` avec :
 sudo grep -E 'Ban |Unban ' /var/log/fail2ban.log | tail -n 10
 ```
 
-Dernière paire d'événements visible dans la capture du 20 octobre 2026 :
+Dernière paire d'événements visible dans la capture :
 
 ```text
 2026-10-20 12:27:09,081 ... [sshd] Ban 192.168.50.20
@@ -592,7 +543,7 @@ Les tentatives SSH sont exécutées sur `tester`, tandis que les commandes `fail
 | ID | Vérification | Résultat attendu | Résultat observé | État |
 |---|---|---|---|---|
 | T08 | Paramètres SSH effectifs | Valeurs du fichier de durcissement prises en compte | Les six valeurs attendues sont retournées par `sshd -T` | Validé |
-| T09 | Nouvelle connexion d'administration | Accès avec `vagrant ssh server` et élévation avec `sudo` | Réalisation confirmée par l'auteur après le rechargement | Validé |
+| T09 | Nouvelle connexion d'administration | Accès avec `vagrant ssh server` et élévation avec `sudo` | Réalisation confirmée  | Validé |
 | T10 | Configuration Fail2ban | Test de configuration réussi | `OK: configuration test is successful` | Validé |
 | T11 | Service et jail SSH | Service actif et jail opérationnelle | `active`, jail `sshd` et correspondance avec le journal systemd | Validé |
 | T12 | Échecs d'authentification | Événements reconnus par le filtre SSH | `Total failed: 3` lors du premier bannissement | Validé |
@@ -602,7 +553,7 @@ Les tentatives SSH sont exécutées sur `tester`, tandis que les commandes `fail
 | T16 | Durée configurée | 300 secondes | Valeur `300` retournée par Fail2ban | Validé |
 | T17 | Levée automatique | Déblocage après environ cinq minutes sans intervention | Paire `Ban`/`Unban` espacée d'environ cinq minutes et retour à l'authentification | Validé |
 
-Les tests valident le scénario IPv4 réalisé dans le laboratoire. Ils ne démontrent pas une protection contre tous les types d'attaque, ni une couverture IPv6. Les contrôles de persistance effectués ensuite sont documentés dans la section 18.
+Les tests valident le scénario IPv4 réalisé dans le laboratoire. 
 
 ## 14. Contrôle d'intégrité avec AIDE
 
@@ -664,7 +615,7 @@ LAB = p+u+g+ftype+s+m+c+sha256
 | `c` | Date de changement des métadonnées (`ctime`) |
 | `sha256` | Empreinte du contenu |
 
-Le périmètre couvre la configuration SSH, celle de Fail2ban et le fichier de configuration AIDE du laboratoire. Les bases AIDE et les journaux ne sont pas inclus dans ces règles. Le nombre d'entrées initialement enregistrées est de **188**, comprenant des fichiers et des répertoires.
+Le périmètre couvre la configuration SSH, celle de Fail2ban et le fichier de configuration AIDE du laboratoire. Les bases AIDE et les journaux ne sont pas inclus dans ces règles.
 
 ### 14.3 Création de la référence
 
@@ -715,7 +666,7 @@ echo '# Test AIDE : modification controlee' | sudo tee -a /etc/ssh/sshd_config.d
 sudo /usr/sbin/sshd -t
 ```
 
-Aucun rechargement SSH n'était nécessaire pour ce commentaire. Un nouveau contrôle AIDE a été effectué sans modifier la référence :
+Un nouveau contrôle AIDE a été effectué sans modifier la référence :
 
 ```bash
 sudo aide --config=/etc/aide/aide-lab.conf --check
@@ -848,8 +799,6 @@ Les trois règles ont été confirmées :
 -w /etc/aide -p wa -k aide_config
 ```
 
-La suppression des barres obliques finales dans l'affichage ne change pas les chemins surveillés. Le message `No rules` apparu pendant `augenrules --load` n'a pas signifié un échec global : la liste finale confirme le chargement des trois règles. Le statut final était `enabled 1`, `lost 0`, `backlog 0`.
-
 ## 17. Test combiné auditd et AIDE
 
 ### 17.1 Génération d'un événement
@@ -952,92 +901,6 @@ Number of entries: 188
 
 Les étapes intermédiaires de cette seconde restauration ne sont pas accompagnées d'une sortie détaillée dans les éléments transmis ; le contrôle final confirme le retour à un état conforme à la référence activée.
 
-## 18. Vérifications après arrêt complet et redémarrage
-
-### 18.1 Procédure
-
-Après fermeture des sessions SSH, les commandes suivantes ont été utilisées comme procédure d'arrêt et de redémarrage depuis le dossier du projet sous PowerShell :
-
-```powershell
-vagrant halt
-vagrant up
-vagrant status
-vagrant ssh server
-```
-
-Un arrêt complet permet de vérifier le rechargement des configurations persistantes. Il évite de dépendre uniquement d'une session suspendue.
-
-### 18.2 SSH
-
-```bash
-sudo /usr/sbin/sshd -T | grep -E '^(permitrootlogin|pubkeyauthentication|passwordauthentication|kbdinteractiveauthentication|maxauthtries|x11forwarding) '
-```
-
-Sortie transmise après redémarrage :
-
-```text
-maxauthtries 3
-permitrootlogin no
-pubkeyauthentication yes
-passwordauthentication no
-kbdinteractiveauthentication no
-x11forwarding no
-```
-
-Les six paramètres ont persisté. L'accès au serveur a également été possible pour exécuter ces contrôles.
-
-### 18.3 Fail2ban
-
-```bash
-sudo fail2ban-client status sshd
-```
-
-La jail `sshd` était accessible, lisait le journal systemd et affichait des compteurs à zéro :
-
-```text
-Currently failed: 0
-Total failed: 0
-Journal matches: _SYSTEMD_UNIT=sshd.service + _COMM=sshd
-Currently banned: 0
-Total banned: 0
-Banned IP list:
-```
-
-Ces compteurs décrivent l'instance après redémarrage ; ils ne remplacent pas l'historique des tests documentés. Aucun nouveau test complet de bannissement après ce redémarrage n'a été fourni : la vérification porte ici sur la disponibilité de la jail.
-
-### 18.4 auditd
-
-```bash
-sudo auditctl -l
-sudo auditctl -s
-```
-
-Les trois règles `ssh_config`, `fail2ban_config` et `aide_config` étaient de nouveau présentes. Le statut indiquait :
-
-```text
-enabled 1
-pid 261
-lost 0
-backlog 0
-```
-
-Cela confirme le fonctionnement du sous-système d'audit et le rechargement des règles persistantes, sans perte d'événement signalée.
-
-### 18.5 AIDE
-
-```bash
-sudo aide --config=/etc/aide/aide-lab.conf --check
-```
-
-Le contrôle effectué à **10:30:17 UTC**, terminé à **10:30:18 UTC**, a retourné :
-
-```text
-AIDE found NO differences between database and filesystem. Looks okay!!
-Number of entries: 188
-```
-
-La base de référence et les fichiers surveillés sont donc restés cohérents après redémarrage. Ce contrôle est manuel ; aucun service de surveillance continue AIDE n'a été mis en place pour le laboratoire.
-
 ## 19. Bilan des nouveaux tests
 
 Les tests T01 à T17 figurent dans les sections 9 et 13. Les vérifications complémentaires sont les suivantes :
@@ -1052,53 +915,8 @@ Les tests T01 à T17 figurent dans les sections 9 et 13. Les vérifications comp
 | T23 | Traçabilité de l'opération | Événement 140 : `tee`, fichier SSH, `auid=vagrant`, `euid=root`, `success=yes` | Validé |
 | T24 | Corrélation AIDE/auditd | Une modification détectée ; `mtime` cohérent avec l'horaire de l'événement | Validé |
 | T25 | Fin du test combiné | Aucune différence AIDE à 10:22:51 UTC après restauration et actualisation | Validé |
-| T26 | SSH après redémarrage | Six paramètres durcis conservés | Validé |
-| T27 | Fail2ban après redémarrage | Jail `sshd` disponible | Validé |
-| T28 | auditd après redémarrage | Trois règles rechargées, `enabled 1`, `lost 0`, `backlog 0` | Validé |
-| T29 | AIDE après redémarrage | Aucune différence sur les 188 entrées à 10:30:17 UTC | Validé |
 
-Les horaires des résultats AIDE sont exprimés en UTC, conformément aux sorties `+0000`. Le 22 octobre 2026, l'heure suisse est décalée de deux heures par rapport à ces sorties.
 
-## 20. Points de restauration et sauvegarde du travail
 
-Le snapshot initial créé avant durcissement est décrit dans la section 8. La création d'un point de restauration supplémentaire après AIDE et auditd a également été préparée.
-
-Procédure depuis PowerShell, après fermeture des sessions SSH :
-
-```powershell
-vagrant halt
-vagrant snapshot save server apres-aide-auditd
-vagrant snapshot save tester apres-aide-auditd
-vagrant snapshot list server
-vagrant snapshot list tester
-```
-
-Ces commandes sauvegardent séparément les VM après un arrêt propre. Aucune sortie de création ou de liste de ces nouveaux snapshots n'a été fournie dans les éléments transmis : leur création effective reste à confirmer avant de la déclarer validée dans le bilan final.
-
-Les snapshots sont locaux à VirtualBox. Ils ne constituent pas une copie indépendante en cas de perte du disque hôte. Le dépôt Git sert à conserver le Vagrantfile, la documentation, les captures et les configurations sélectionnées ; le dossier `.vagrant/` doit rester exclu car il contient des données propres au poste et des clés privées.
-
-## 21. Limites de la solution et interprétation des résultats
-
-- **Périmètre du durcissement :** seules les mesures décrites ont été appliquées. Le travail ne revendique pas une conformité CIS complète.
-- **SSH :** les valeurs effectives et le maintien de l'accès ont été vérifiés. Des essais fonctionnels distincts de connexion root, de dépassement de `MaxAuthTries` et de transfert X11 n'ont pas été fournis.
-- **Fail2ban :** les tests concernent une source IPv4 et des événements liés à un utilisateur inexistant. Une adresse ignorée n'est pas bannie par cette jail. Le filtrage ne traite pas tous les types d'attaque ni les attaques distribuées.
-- **AIDE :** la détection dépend du périmètre configuré et de l'exécution d'un contrôle. L'outil ne bloque pas les écritures et ne décide pas si une modification est autorisée. Une référence ne doit être actualisée qu'après examen des différences.
-- **Base de confiance :** la base AIDE est locale et accessible à root. Un attaquant disposant de privilèges suffisants pourrait altérer la base, les configurations ou les journaux. La sauvegarde de la référence et des traces hors de la machine constituerait une amélioration possible.
-- **auditd :** les règles enregistrent le contexte des opérations surveillées ; elles ne conservent pas nécessairement le contenu exact écrit. `auid` identifie un compte de connexion, pas avec certitude une personne physique. Le compte `vagrant` reste un compte d'administration de laboratoire.
-- **Protection des règles d'audit :** `/etc/audit/` n'est pas inclus dans la configuration AIDE actuelle et ne fait pas l'objet d'une règle de surveillance dédiée dans ce projet.
-- **Après redémarrage :** les paramètres SSH, la jail Fail2ban, les règles auditd et la cohérence AIDE ont été vérifiés. Tous les scénarios d'attaque n'ont pas été rejoués après ce redémarrage.
-
-## 22. État d'avancement et finalisation
-
-Les objectifs techniques définis pour SSH, Fail2ban, AIDE et auditd ont été mis en œuvre et vérifiés dans les scénarios documentés. Le laboratoire démontre la prévention de certains accès, la détection des modifications et la traçabilité des opérations. Les contrôles après redémarrage confirment la persistance des éléments vérifiés.
-
-La finalisation comprend encore :
-
-1. Ajouter les captures des étapes AIDE, auditd et redémarrage dans le dossier `Pictures/`, avec leurs noms réels.
-2. Confirmer la présence des snapshots supplémentaires dans Vagrant ou VirtualBox.
-3. Sauvegarder les configurations retenues dans Git, sans clés privées ni dossier `.vagrant/`.
-4. Préparer la présentation et une démonstration courte à partir des scénarios documentés.
-
-Les liens d'images déjà présents dans le Markdown ont été conservés. Aucun nouveau nom de capture AIDE ou auditd n'est supposé : les sorties fournies sont reproduites sous forme de texte et de tableaux jusqu'à réception des noms exacts des images.
 
 
